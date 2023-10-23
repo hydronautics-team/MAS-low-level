@@ -15,6 +15,7 @@
 #include "wiringPi.h"
 #include "parserUWB/protocoluwb.h"
 #include "parserUWB/trilatUWB.h"
+#include "PS_MS5837/ms5837.h"
 
 const QString ConfigFile = "protocols.conf";
 const QString agent = "agent";
@@ -74,6 +75,7 @@ protected:
     UWB::ProtocolUWB *prUWB = nullptr;
     UWB::TrilatUWB *trUWB = nullptr;
     VMA_controller* vmaProtocol = nullptr;
+    MS5837* ps = nullptr;
     power_Mode pMode;
     //обмен с пультом
     ControlSystem::PC_Protocol *auvProtocol = nullptr;

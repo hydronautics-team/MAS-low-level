@@ -29,6 +29,8 @@ CS_ROV::CS_ROV(QObject *parent)
     QObject::connect(&uwbThread, &QThread::started, prUWB, &UWB::ProtocolUWB::start);
     uwbThread.start();
 
+    ps = new MS5837();
+
 Calibration *calib = new Calibration(prUWB);
 
     QObject::connect(prUWB, &UWB::ProtocolUWB::renewMSG, trUWB, &UWB::TrilatUWB::distanceCalc, Qt::BlockingQueuedConnection);
