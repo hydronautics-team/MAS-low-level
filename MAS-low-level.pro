@@ -23,8 +23,10 @@ SOURCES += \
         parserUWB/trilatUWB.cpp \
         rov_model.cpp
 
-LIBS += -L"/home/hydronautics/rpi/sysroot/usr/lib"
-LIBS += -lwiringPi
+#LIBS += -L"/home/hydronautics/rpi/sysroot/usr/lib"
+#LIBS += -lwiringPi
+#LIBS += -L"/home/hydronautics/rpi/sysroot/usr/lib/arm-linux-gnueabihf"
+#LIBS += -li2c
 
 # Default rules for deployment.
 qnx: target.path = /tmp/$${TARGET}/bin

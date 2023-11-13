@@ -21,6 +21,12 @@ const QString ConfigFile = "protocols.conf";
 const QString agent = "agent";
 const QString XI = "xi";
 const QString KI = "ki";
+const QString KI_MODEL = "ki_model";
+
+enum class LaunchMode: int {
+    MODEL,
+    REAL_AUV
+};
 
 class CS_ROV : public QObject
 {
@@ -71,11 +77,13 @@ protected:
     void changeSinSignalFlag(qint8 sinflag);
     void setModellingFlag(bool);
     void aperiodicFilter(double &input, double &output, double &prevOutput, double K, double T, double dt);
+    LaunchMode JSON_init();
+    LaunchMode realLaunchMode;
     AH127Cprotocol *AH127C = nullptr;
     UWB::ProtocolUWB *prUWB = nullptr;
     UWB::TrilatUWB *trUWB = nullptr;
     VMA_controller* vmaProtocol = nullptr;
-    MS5837* ps = nullptr;
+//    MS5837* ps = nullptr;
     power_Mode pMode;
     //обмен с пультом
     ControlSystem::PC_Protocol *auvProtocol = nullptr;
@@ -84,8 +92,6 @@ protected:
     QTimer timer_power;
     QThread vmaThread;
     QThread uwbThread;
-
-//  bool vmaPowerOffFlag = true;
     quint8 modellingFlag = 1;
     quint8 flag_of_mode = 100;
     quint8 contour_closure_yaw = 0;
