@@ -12,11 +12,12 @@ double X[2000][2];
 CS_ROV::CS_ROV(QObject *parent)
 {
     realLaunchMode = JSON_init();
-    if ( realLaunchMode == LaunchMode::REAL_AUV) {
+    if (realLaunchMode == LaunchMode::REAL_AUV) {
         //передача K
         Qkx_coeffs* kProtocol = new Qkx_coeffs(ConfigFile, KI);
-    } else {
-        Qkx_coeffs* kmodelProtocol = new Qkx_coeffs(ConfigFile, KI_MODEL);
+    }
+    if (realLaunchMode == LaunchMode::MODEL) {
+        Qkx_coeffs* kProtocol = new Qkx_coeffs(ConfigFile, KI_MODEL);
     }
     //передача X
     x_protocol* xProtocol = new x_protocol(ConfigFile, XI, X);
@@ -178,9 +179,30 @@ void CS_ROV::readDataFromPult()
     X[55][0] = auvProtocol->rec_data.controlData.lag;
     X[56][0] = auvProtocol->rec_data.controlData.depth;
 
+    qDebug() << "given yaw" << auvProtocol->rec_data.controlData.yaw;
+    qDebug() << "given pitch" << auvProtocol->rec_data.controlData.pitch;
+    qDebug() << "given roll" << auvProtocol->rec_data.controlData.roll;
+    qDebug() << "given march" << auvProtocol->rec_data.controlData.march;
+    qDebug() << "given lag" << auvProtocol->rec_data.controlData.lag;
+    qDebug() << "given depth" << auvProtocol->rec_data.controlData.depth;
+    qDebug() << "mode" << &auvProtocol->rec_data.cSMode;
+    qDebug() << "beacon_x" << auvProtocol->rec_data.pultUWB.beacon_x;
+    qDebug() << "beacon_y" << auvProtocol->rec_data.pultUWB.beacon_y;
+    qDebug() << "given closed yaw" << auvProtocol->rec_data.controlContoursFlags.yaw;
+    qDebug() << "given closed pitch" << auvProtocol->rec_data.controlContoursFlags.pitch;
+    qDebug() << "given closed roll" << auvProtocol->rec_data.controlContoursFlags.roll;
+    qDebug() << "given closed march" << auvProtocol->rec_data.controlContoursFlags.march;
+    qDebug() << "given closed lag" << auvProtocol->rec_data.controlContoursFlags.lag;
+    qDebug() << "given closed depth" << auvProtocol->rec_data.controlContoursFlags.depth;
+    qDebug() << "modeAUV_selection" << auvProtocol->rec_data.modeAUV_selection;
+    qDebug() << "power_Mode" << &auvProtocol->rec_data.pMode;
+    qDebug() << "initCalibration" << &auvProtocol->rec_data.flagAH127C_pult.initCalibration;
+    qDebug() << "saveCalibration" << &auvProtocol->rec_data.flagAH127C_pult.saveCalibration;
+    qDebug() << "checksum" << &auvProtocol->rec_data.checksum;
+
     if (auvProtocol->rec_data.modeAUV_selection == 1) setModellingFlag(true);
     else setModellingFlag(false);
-    auvProtocol->rec_data.cSMode = e_CSMode::MODE_AUTOMATED;
+    //auvProtocol->rec_data.cSMode = e_CSMode::MODE_AUTOMATED;
 }
 
 void CS_ROV::readDataFromSensors()
@@ -334,11 +356,12 @@ void CS_ROV::regulators()
            }
            contour_closure_yaw = 1;
 
-           //X[104][0] = K[104]*X[54][0]; //Ux  - марш
+           //X[54][0] = 20;
+           X[104][0] = K[94]*X[54][0]; //Ux  - марш   РАБОТАЕТ!!!ы`
 
     //контур курса
-           //processDesiredValuesAutomatiz(X[51][0],X[5][0],X[5][1],K[2]); //пересчет рукоятки в автоматизированном режиме
-           X[5][0] = K[1];
+           processDesiredValuesAutomatiz(X[51][0],X[5][0],X[5][1],K[2]); //пересчет рукоятки в автоматизированном режиме
+           //X[5][0] = K[1];
            if (modellingFlag == 1 || realLaunchMode == LaunchMode::MODEL) {
                X[111][0] = X[5][0] - X[18][0];
            } else {
@@ -565,6 +588,8 @@ void CS_ROV::aperiodicFilter(double &input, double &output, double &prevOutput, 
 
 void CS_ROV::writeDataToVMA()
 {
+//    qDebug() << X[18][0];
+//    qDebug() << X[51][0];
     if (modellingFlag == 1 || realLaunchMode == LaunchMode::MODEL) {//режим модели
         model.tick(X[211][0], X[221][0], X[231][0], X[241][0], X[251][0], X[261][0], 0.01);
     }
