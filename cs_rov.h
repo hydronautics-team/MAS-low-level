@@ -16,6 +16,7 @@
 #include "parserUWB/protocoluwb.h"
 #include "parserUWB/trilatUWB.h"
 #include "PS_MS5837/ms5837.h"
+#include"logger/logger.h"
 
 const QString ConfigFile = "protocols.conf";
 const QString agent = "agent";
@@ -36,14 +37,13 @@ public:
 
     void start(int dt){
         timer.start(dt);
-//        timer_power.start(dt);
 
     }
 
 public slots:
     void tick();
     void resetValues();
-//    void tick_power();
+
 public:
     double limit (double value, double limit){
         if(fabs(value)>limit) return (limit*sgn(value));
@@ -57,6 +57,8 @@ public:
     int sign(double input);
 
 protected:
+
+    Logger logger;
     void processDesiredValuesAutomatiz(double inputFromRUD, double &output, double &prev_output, double scaleK,
                                        bool flagLimit = false, double maxValue=180, double dt=0.01);
     void integrate(double &input, double &output, double &prevOutput, double dt);
@@ -83,7 +85,7 @@ protected:
     UWB::ProtocolUWB *prUWB = nullptr;
     UWB::TrilatUWB *trUWB = nullptr;
     VMA_controller* vmaProtocol = nullptr;
-//    MS5837* ps = nullptr;
+    //MS5837* ps = nullptr;
     power_Mode pMode;
     //обмен с пультом
     ControlSystem::PC_Protocol *auvProtocol = nullptr;
@@ -103,6 +105,9 @@ protected:
     qint8 flag_switch_mode_1 = true;
     qint8 flag_switch_mode_2 = false;
     QTime timeRegulator;
+    QTime timeYaw;
+    double drewYaw = 0;
+    bool flagYawInit = false;
 
     int ms = 0;
     int count = 0;

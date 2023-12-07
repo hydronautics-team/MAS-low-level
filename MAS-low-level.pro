@@ -17,6 +17,7 @@ SOURCES += \
         kx_pult/kx_protocol.cpp \
         kx_pult/qkx_coeffs.cpp \
         kx_pult/qpiconfig.cpp \
+        logger/logger.cpp \
         main.cpp \
         parserUWB/calibration.cpp \
         parserUWB/protocoluwb.cpp \
@@ -42,6 +43,7 @@ HEADERS += \
     kx_pult/kx_protocol.h \
     kx_pult/qkx_coeffs.h \
     kx_pult/qpiconfig.h \
+    logger/logger.h \
     parserUWB/calibration.h \
     parserUWB/protocoluwb.h \
     parserUWB/trilatUWB.h \
