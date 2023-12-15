@@ -1,8 +1,8 @@
 QT += core network
 QT += serialport
 
-#CONFIG += c++17 console
-#CONFIG -= app_bundle
+CONFIG += c++17 console
+CONFIG -= app_bundle
 
 # You can make your code fail to compile if it uses deprecated APIs.
 # In order to do so, uncomment the following line.
@@ -24,10 +24,10 @@ SOURCES += \
         parserUWB/trilatUWB.cpp \
         rov_model.cpp
 
-#LIBS += -L"/home/hydronautics/rpi/sysroot/usr/lib"
-#LIBS += -lwiringPi
-#LIBS += -L"/home/hydronautics/rpi/sysroot/usr/lib/arm-linux-gnueabihf"
-#LIBS += -li2c
+LIBS += -L"/home/hydronautics/rpi/sysroot/usr/lib"
+LIBS += -lwiringPi
+LIBS += -L"/home/hydronautics/rpi/sysroot/usr/lib/arm-linux-gnueabihf"
+LIBS += -li2c
 
 # Default rules for deployment.
 qnx: target.path = /tmp/$${TARGET}/bin

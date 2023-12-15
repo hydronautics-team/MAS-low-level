@@ -65,13 +65,14 @@ protected:
 
     void readDataFromPult();
     void calibration();
-    void alternative_yaw_calculation();
+    void alternative_yaw_calculation(float dt);
     void readDataFromSensors();
     void regulators();
     void timer_power_power();
     void resetYawChannel();
     void resetRollChannel();
     void resetPitchChannel();
+    void controlRoll(double dt);
     void BFS_DRK(double Upsi, double Uteta, double Ugamma, double Ux, double Uy, double Uz);
     void writeDataToVMA();
     void writeDataToPult();
@@ -92,6 +93,7 @@ protected:
     ROV_Model model;
     QTimer timer;
     QTimer timer_power;
+    QTimer timerVMA;
     QThread vmaThread;
     QThread uwbThread;
     quint8 modellingFlag = 1;
@@ -104,10 +106,13 @@ protected:
     quint8 contour_closure_depth = 0;
     qint8 flag_switch_mode_1 = true;
     qint8 flag_switch_mode_2 = false;
+    qint8 flag_switch_mode_3 = false;
     QTime timeRegulator;
     QTime timeYaw;
     double drewYaw = 0;
+    double drewYawAuto = 0;
     bool flagYawInit = false;
+    bool flagYawAuto = false;
 
     int ms = 0;
     int count = 0;
