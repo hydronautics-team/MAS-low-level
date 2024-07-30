@@ -101,27 +101,6 @@ void ROV_Model::model(const float Upl,const float Upp,const float Usl,const floa
     G = m*g; //вес аппарата
     Fa = G;
     Farx[0] = 0; Farx[1] = 0; Farx[2] = -Fa;
-/*
-    //обнуление вертикальной положительной скорости аппарата при достижении поверхности
-    limit1 = limit2 = 0;
-    if (a[17] >= max_depth) {
-      a[17] = max_depth;
-        if (a[3] <= 0) {
-          a[3] = 0;
-          limit1 = 1;
-      }
-    };
-
-    //обнуление вертикальной положительной скорости аппарата при достижении дна
-    if (a[17] <= 0)
-    {
-      a[17] = 0;
-        if (a[3] >= 0)
-      {
-          a[3] = 0;
-          limit2 = 1;
-      }
-    };   */
 
     Fdx = Ppl_x + Ppp_x + Psl_x + Psp_x + Pzl_x + Pzp_x; // вектор сил и моментов, создаваемых движительным комплексом
     Fgx = -cv1[1] * a[1] * fabs(a[1]) - cv2[1] * a[1]; //произведение D1*Vx
@@ -149,6 +128,7 @@ void ROV_Model::model(const float Upl,const float Upp,const float Usl,const floa
     da[5] = a[19] * cos(a[4]) - sin(a[4]) * a[20] + Vt[5];  //производная дифферента
 
     da[6] = (1/cos(a[5])) * (a[19] * sin(a[4]) + cos(a[4]) * (a[20])) + Vt[6]; //производная крена
+
  // Из матмодели имеем
  //K_двi - усредненный коэффициент усиления i-го движителя; T_двi=J_i/K_v1i  – наибольшее значение постоянной времени i-го ВМА
     da[7] = (1/Td) * (kd * (double)Upl - Ppl);  // передний нижний правый(1)
@@ -305,7 +285,4 @@ void ROV_Model::runge(const float Upl,const float Upp,const float Usl,const floa
     X[28][0]=vx_global;
     X[29][0]=vy_global;
     X[30][0]=vz_global;
-
 }
-
-

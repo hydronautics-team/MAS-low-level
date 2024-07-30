@@ -9,6 +9,7 @@ CONFIG -= app_bundle
 #DEFINES += QT_DISABLE_DEPRECATED_BEFORE=0x060000    # disables all the APIs deprecated before Qt 6.0.0
 
 SOURCES += \
+        Beacon-withPult/hydroacoustics.cpp \
         NIR/VMA_controller/vma_controller.cpp \
         PS_MS5837/ms5837.cpp \
         Parser-BW-AH127C/AH127Cprotocol.cpp \
@@ -35,6 +36,7 @@ else: unix:!android: target.path = /opt/$${TARGET}/bin
 !isEmpty(target.path): INSTALLS += target
 
 HEADERS += \
+    Beacon-withPult/hydroacoustics.h \
     NIR/VMA_controller/vma_controller.h \
     PS_MS5837/ms5837.h \
     Parser-BW-AH127C/AH127Cprotocol.h \

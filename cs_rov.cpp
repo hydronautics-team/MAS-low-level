@@ -26,9 +26,8 @@ CS_ROV::CS_ROV(QObject *parent)
 
         AH127C = new AH127Cprotocol("ttyUSB0");  //ttyUSB1
         qDebug() << "Инициализировал БСО";
-        logger.logStart();
-        connect(AH127C, &AH127Cprotocol::updateData, &logger, &Logger::logTick);
-
+//        logger.logStart();
+//        connect(AH127C, &AH127Cprotocol::updateData, &logger, &Logger::logTick);
 
         QSettings settings("settings/settings.ini", QSettings::IniFormat);
         settings.beginGroup("Port");
@@ -50,10 +49,15 @@ CS_ROV::CS_ROV(QObject *parent)
         uwbThread.start();
 
         //ps = new MS5837();
-        //qDebug() << "я закончил с датчиком давления";
-        Calibration *calib = new Calibration(prUWB);
 
-        QObject::connect(prUWB, &UWB::ProtocolUWB::renewMSG, trUWB, &UWB::TrilatUWB::distanceCalc, Qt::BlockingQueuedConnection);
+        Calibration *calib = new Calibration(prUWB);
+       //может быть расскоментирована только одна из трех строк, или калибровка, или uwb модуль, или гидроакустика
+//        QObject::connect(prUWB, &UWB::ProtocolUWB::renewMSG, trUWB, &UWB::TrilatUWB::distanceCalc, Qt::BlockingQueuedConnection);
+//        QObject::connect(prUWB, &UWB::ProtocolUWB::renew, calib, &Calibration::newCalibration, Qt::BlockingQueuedConnection);
+        hydro = new Hydroacoustics("ttyUSB0");
+        connect(&timerRound,&QTimer::timeout, hydro, &Hydroacoustics::modeRound);
+        timerRound.start(4000);
+        QObject::connect(hydro, &Hydroacoustics::updateData, this, &CS_ROV::updateDataUWB);
 
         //управление питанием
         wiringPiSetup () ;
@@ -64,17 +68,17 @@ CS_ROV::CS_ROV(QObject *parent)
     }
 
     auvProtocol = new ControlSystem::PC_Protocol(ConfigFile,"agent");
-    qDebug() << "-----start exchange";
+    qDebug() << "-----start exchange-----";
     auvProtocol->startExchange();
 
     connect(&timer, &QTimer::timeout, this, &CS_ROV::tick);
-    connect(&timerVMA, &QTimer::timeout, this, &CS_ROV::writeDataToVMA);
-    timer.start(10);
+
+    timer.start(20);
     timeRegulator.start();
-   // timerVMA.start(10);
+
     X[91][0]=X[91][1]=0; //нулевые НУ для интегрирования угловой скорости и нахождения угла курса
     X[92][0]=X[92][1]=0; //нулевые НУ для интегрирования угловой скорости и нахождения угла дифферента
-    X[609][0]=X[609][1]=0;
+    X[609][0]=X[609][1]=0; //нулевые НУ для дифференцирования контура глубины
 }
 
 void CS_ROV::tick()
@@ -82,7 +86,6 @@ void CS_ROV::tick()
     readDataFromPult();
     readDataFromSensors();
     calibration();
-//    alternative_yaw_calculation();
     regulators();
     BFS_DRK(X[101][0], X[102][0], X[103][0] , X[104][0], X[105][0], X[106][0]);
     writeDataToVMA();
@@ -94,7 +97,6 @@ void CS_ROV::tick()
             ms = 0;
             timer_power_power();
         }
-
 }
 
 LaunchMode CS_ROV::JSON_init()
@@ -133,7 +135,15 @@ void CS_ROV::integrate(double &input, double &output, double &prevOutput, double
 void CS_ROV::resetValues()
 {
     vmaProtocol->setValues(0, 0, 0, 0, 0, 0);
+}
 
+void CS_ROV::updateDataUWB(uWave uwvave)
+{
+    X[541][0] = uwvave.puwv3.distanceID1;
+    X[542][0] = uwvave.puwv3.distanceID2;
+    X[543][0] = uwvave.puwv3.distanceID3;
+    X[551][0] = uwvave.puwv3.distanceIDx;
+    X[552][0] = uwvave.puwv3.distanceIDy;
 }
 
 float CS_ROV::saturation(float input, float max, float min)
@@ -212,18 +222,21 @@ void CS_ROV::readDataFromPult()
     if (auvProtocol->rec_data.cSMode == e_CSMode::MODE_AUTOMATED) qDebug() << "Я в АВТОМАТИЗИРОВАННОМ!";
     if (auvProtocol->rec_data.cSMode == e_CSMode::MODE_MANUAL) qDebug() << "Я в РУЧНОМ!";
     if (auvProtocol->rec_data.cSMode == e_CSMode::MODE_AUTOMATIC) qDebug() << "Я в АВТОМАТИЧЕСКОМ";
-//    qDebug() <<"ps->depth: " << ps->depth();
     if (auvProtocol->rec_data.modeAUV_selection == 1) setModellingFlag(true);
     else setModellingFlag(false);
 }
 
 void CS_ROV::readDataFromSensors()
 {
+    qDebug() << " я в readDataFromSensors";
     if (modellingFlag == 0 && realLaunchMode == LaunchMode::REAL_AUV) {
         //kx-pult
         X[61][0] = AH127C->data.yaw;
         X[62][0] = AH127C->data.pitch;
         X[63][0] = AH127C->data.roll;
+        qDebug() << "AH127C->data.yaw" << X[61][0];
+        qDebug() << "AH127C->data.pitch" << X[62][0];
+        qDebug() << "AH127C->data.roll" << X[63][0];
 
         X[64][0] = AH127C->data.X_accel;
         X[65][0] = AH127C->data.Y_accel;
@@ -242,7 +255,7 @@ void CS_ROV::readDataFromSensors()
         X[75][0] = AH127C->data.third_qvat;
         X[76][0] = AH127C->data.four_qvat;
 
-        //X[609][0] = ps->depth();
+//        X[609][0] = ps->depth();
 //        qDebug() <<"ps->depth: " << ps->depth();
 
     } else {
@@ -301,10 +314,7 @@ void CS_ROV::calibration() {
 
 void CS_ROV::alternative_yaw_calculation(float dt)
 {
-//    float dt = timeYaw.elapsed()*0.001;//реальный временной шаг цикла
-//    timeYaw.start();
     if (modellingFlag == 0 && realLaunchMode == LaunchMode::REAL_AUV) {
-
         X[170][0] = X[70][0] + K[70]; //Mx с учетом коррекции
         X[171][0] = X[71][0] + K[71]; //My с учетом коррекции
         //X[172][0]=X[72][0] + K[72];
@@ -325,132 +335,83 @@ void CS_ROV::alternative_yaw_calculation(float dt)
         X[175][0] = I[1];
         X[178][0] = atan2(-I[1],-I[0])*57.3; //почему-то здесь ранее стоял Х75, что странно
 
-        X[79][0] = 57.3/cos(X[62][0]/57.3)*(-X[69][0]*cos(X[63][0]/57.3)-X[68][0]*sin(X[63][0]/57.3));
-        if (!flagYawInit)
-        {
+        X[79][0] = -1/cos(X[62][0]/57.3)*(-X[69][0]*cos(X[63][0]/57.3)-X[68][0]*sin(X[63][0]/57.3));
+
+        if (!flagYawInit) {
            flagYawInit = true;
            X[91][0] = X[91][1]= X[178][0] + K[178];
            drewYaw = X[69][0];
         }
         //   integrate(X[69][0],X[91][0],X[91][1],dt); //интегрируем показание Z_rate для нахождения текущего угла курса
-//        integrate(X[79][0],X[91][0],X[91][1],dt); //интегрируем показание Z_rate для нахождения текущего угла курса
+        integrate(X[79][0],X[91][0],X[91][1],dt); //интегрируем показание Z_rate для нахождения текущего угла курса
+
     }
 }
 
 void CS_ROV::regulators()
 {
-    float dt = timeRegulator.elapsed()*0.001;//реальный временной шаг цикла
+    float dt = timeRegulator.elapsed()*0.001;   //реальный временной шаг цикла
     timeRegulator.start();
     if (modellingFlag == 0 && realLaunchMode == LaunchMode::REAL_AUV) {
-        integrate(X[69][0],X[91][0],X[91][1],dt); //интегрируем показание Z_rate для нахождения текущего угла курса
-          alternative_yaw_calculation(dt);
+//      integrate(X[69][0],X[91][0],X[91][1],dt); //интегрируем показание Z_rate для нахождения текущего угла курса
+        alternative_yaw_calculation(dt);
     }
     if (auvProtocol->rec_data.cSMode == e_CSMode::MODE_MANUAL) { //САУ тогда разомкнута
-            if (flag_switch_mode_1 == false) {
-                X[5][0] = X[5][1] = 0;
-                flag_switch_mode_1 = true;
-                flag_switch_mode_2 = false;
-                flag_switch_mode_3 = false;
-                qDebug() << contour_closure_yaw <<"ручной режим";
-            }
+        if (flag_switch_mode_1 == false) {
+            X[5][0] = X[5][1] = 0;
+            flag_switch_mode_1 = true;
+            flag_switch_mode_2 = false;
+            flag_switch_mode_3 = false;
+            qDebug() << contour_closure_yaw <<"ручной режим";
+        }
 
-            flag_of_mode = 0;
-            if (modellingFlag == 1 || realLaunchMode == LaunchMode::MODEL) {
-                X[101][0] = K[91]*X[51][0]; //управление по курсу, домножается на коэффициент и передается на ВМА
-                X[102][0] = K[92]*X[52][0]; //Uteta
-                X[103][0] = K[93]*X[53][0]; //Ugamma
-                X[104][0] = K[94]*X[54][0]; //Ux
-                X[105][0] = K[95]*X[55][0]; //Uy
-                X[106][0] = K[96]*X[56][0]; //Uz
-            } else {
-                X[101][0] = K[101]*X[51][0]; //управление по курсу, домножается на коэффициент и передается на ВМА
-                X[102][0] = K[102]*X[52][0]; //Uteta
-                X[103][0] = K[103]*X[53][0]; //Ugamma
-                X[104][0] = K[104]*X[54][0]; //Ux
-                X[105][0] = K[105]*X[55][0]; //Uy
-                X[106][0] = K[106]*X[56][0]; //Uz
-            }
+        flag_of_mode = 0;
+        if (modellingFlag == 1 || realLaunchMode == LaunchMode::MODEL) {
+            X[101][0] = K[91]*X[51][0]; //управление по курсу, домножается на коэффициент и передается на ВМА
+            X[102][0] = K[92]*X[52][0]; //Uteta
+            X[103][0] = K[93]*X[53][0]; //Ugamma
+            X[104][0] = K[94]*X[54][0]; //Ux
+            X[105][0] = K[95]*X[55][0]; //Uy
+            X[106][0] = K[96]*X[56][0]; //Uz
+        } else {
+            X[101][0] = K[101]*X[51][0]; //Upsi
+            X[102][0] = K[102]*X[52][0]; //Uteta
+            X[103][0] = K[103]*X[53][0]; //Ugamma
+            X[104][0] = K[104]*X[54][0]; //Ux
+            X[105][0] = K[105]*X[55][0]; //Uy
+            X[106][0] = K[106]*X[56][0]; //Uz
+        }
 
-            resetYawChannel();
-            resetRollChannel();
-            resetPitchChannel();
+        resetYawChannel();
+        resetRollChannel();
+        resetPitchChannel();
 
     } else if (auvProtocol->rec_data.cSMode == e_CSMode::MODE_AUTOMATED) { //САУ в автоматизированном режиме
         flag_of_mode = 1;
-        X[104][0] = K[104]*X[54][0]; //Ux  - марш   РАБОТАЕТ!!!ы`
-        X[105][0] = K[105]*X[55][0];
+        X[104][0] = K[104]*X[54][0]; //Ux  - марш
+        X[105][0] = K[105]*X[55][0]; //Uy
         X[106][0] = K[106]*X[56][0]; //Uz
-        if (auvProtocol->rec_data.controlContoursFlags.yaw>0) { //замкнут курс
-           if (flag_switch_mode_2 == false) {
-                X[5][1]=X[91][0];
-                X[5][0] = 0;
-                flag_switch_mode_2 = true;
-                flag_switch_mode_1 = false;
-                flag_switch_mode_3 = false;
-                qDebug() << contour_closure_yaw <<"автоматизированный режим";
-           }
-           contour_closure_yaw = 1;
 
+        controlYaw(dt); //контур курса
+        controlRoll(dt); //контур крена
+//      controlPitch(dt); //контур дифферента
+//      controlDepth(dt); //контур глубины
 
-
-    //контур курса
-           processDesiredValuesAutomatiz(X[51][0],X[5][0],X[5][1],K[2]); //пересчет рукоятки в автоматизированном режиме
-           //X[5][0] = K[1];
-           if (modellingFlag == 1 || realLaunchMode == LaunchMode::MODEL) {
-               X[111][0] = X[5][0] - X[18][0];
-           } else {
-               X[111][0] = yawErrorCalculation(X[5][0],X[91][0]); //учет предела работы датчика, пересчет кратчайшего пути
-               }
-           X[112][0] = X[111][0]*K[111];
-           X[113][0] = X[112][0]*K[112];
-           X[114][0] = X[114][1] + 0.5*(X[113][0] + X[113][1])*dt; //выходное значение интегратора без полок
-
-           if (K[113] != 0){//значит заданы полки
-               X[114][0] = saturation(X[114][0],K[113],K[114]); //выходное значение интегратора с полками
-           }
-           X[114][1] = X[114][0];
-           X[113][1] = X[113][0];
-
-           X[116][0] = X[114][0] + X[112][0];
-           if (modellingFlag == 1 || realLaunchMode == LaunchMode::MODEL) {
-               aperiodicFilter(X[12][0],X[401][0],X[401][1],K[402],K[403],dt);
-           } else {
-               aperiodicFilter(X[69][0],X[401][0],X[401][1],K[402],K[403],dt);
-           }
-           X[121][0] = X[401][0]*K[118];
-
-           X[119][0] = X[51][0]*K[119];
-           X[117][0] = X[116][0] - X[121][0] + X[119][0];
-           X[118][0] = saturation(X[117][0],K[116],-K[116]);
-           X[101][0] = X[118][0]*K[100];
-           X[101][0] = X[101][0] + sign(X[101][0])*K[401];        }
-        else {
-            X[101][0] = K[101]*X[51][0]; //Upsi
-            X[101][0] = saturation(X[117][0],K[116],-K[116]);
-            resetYawChannel();
-       //     resetRollChannel();
-        }
-        controlRoll(dt);
         } else if (auvProtocol->rec_data.cSMode == e_CSMode::MODE_AUTOMATIC) { //САУ в автоматическом режиме
         qDebug() << " mode is auomatic yaw flag is"<<  auvProtocol->rec_data.controlContoursFlags.yaw;
         if (auvProtocol->rec_data.controlContoursFlags.yaw>0) { //замкнут курс
-
            if (flag_switch_mode_3 == false) {
-         //       X[59][1]=X[91][0];
                 X[59][0] = X[58][0]= X[91][0];
                 flag_switch_mode_3 = true;
                 flag_switch_mode_1 = false;
                 flag_switch_mode_2 = false;
                 qDebug() << contour_closure_yaw <<"автоматический режим";
            }
-
            contour_closure_yaw = 1;
 
            if (auvProtocol->rec_data.ID_mission_AUV != 0 && auvProtocol->rec_data.missionControl != mission_Control::MODE_IDLE) {
-
                X[59][0] = X[58][0] + X[51][0];
-           } else
-           {
+           } else {
                X[59][0] = X[58][0] = X[91][0];
            }
 
@@ -463,14 +424,13 @@ void CS_ROV::regulators()
            qDebug() << "Ux is : "<<X[104][0] << " " << X[54][0];
 
            if (modellingFlag == 1 || realLaunchMode == LaunchMode::MODEL) {
-                qDebug() << "I in this plce";
+                qDebug() << "I in this place";
                 qDebug() << "Psi is : "<<X[51][0] << " " << X[111][0];
                X[111][0] = X[51][0] - X[18][0];
-           }
-           else {
-                qDebug() << "I in this plce 2";
+           } else {
+                qDebug() << "I in this place 2";
                X[111][0] = yawErrorCalculation(X[59][0],X[91][0]); //учет предела работы датчика, пересчет кратчайшего пути
-               }
+           }
            X[112][0] = X[111][0]*K[111];
            X[113][0] = X[112][0]*K[112];
            X[114][0] = X[114][1] + 0.5*(X[113][0] + X[113][1])*dt; //выходное значение интегратора без полок
@@ -495,89 +455,105 @@ void CS_ROV::regulators()
            X[101][0] = X[118][0]*K[100];
            X[101][0] = X[101][0] + sign(X[101][0])*K[401];        }
         else {
-            X[101][0] = K[101]*X[51][0]; //Upsi
-            X[101][0] = saturation(X[117][0],K[116],-K[116]);
+            if (modellingFlag == 1 || realLaunchMode == LaunchMode::MODEL) {
+                X[104][0] = K[94]*X[54][0];
+            } else {
+                X[104][0] = K[104]*X[54][0];
+            }
+            if (modellingFlag == 1 || realLaunchMode == LaunchMode::MODEL) {
+                X[101][0] = K[91]*X[51][0];
+            } else {
+                X[101][0] = K[101]*X[51][0];
+            }
             resetYawChannel();
-      //      resetRollChannel();
+            X[101][0] = saturation(X[117][0],K[116],-K[116]);
         }
     }
-
-
-        //Контур глубины
-
-//       if (auvProtocol->rec_data.controlContoursFlags.depth>0)
-//        {
-//           //X[56][0] = K[1]; //для отладки если вдруг понадобится
-//           //Вычисление ошибки контура положения
-//           if (modellingFlag == 1 || realLaunchMode == LaunchMode::MODEL) {
-//              X[601][0] = X[56][0] - X[21][0];
-//           } else {
-//           X[601][0] = X[56][0] - X[609][0];
-//           }
-//           X[602][0] = X[601][0]*K[600]; //Усиление ошибки по положению
-//           X[605][0] = X[602][0]; //Интегрирующую составляющую пропустили
-           
-
-//           if (modellingFlag == 1 || realLaunchMode == LaunchMode::MODEL) {
-//               X[611][0] = X[30][0]*K[606];
-//           } else {
-//           X[610][0] = (X[609][0]-X[609][1])/1; // Дифференцирование
-//           X[611][0] = X[610][0]*K[606]; // Усиление обратной связи по скорости
-//           }
-
-//           X[613][0] = X[56][0]*K[605]; // Усиление возмущающего воздействия по скорости
-//           X[606][0] = X[605][0] - X[611][0] + X[613][0]; // Получение ошибки по скорости
-//           X[607][0] = saturation(X[606][0],K[604],-K[604]); // Насыщение в контуре скорости
-//           X[106][0] = X[607][0]*K[607]; // Усиление ошибки по скорости
-
-//           X[609][1] = X[609][0];
-//        }
-
-        
-//        if (auvProtocol->rec_data.controlContoursFlags.pitch>0) { //замкнут дифферент
-//           if (flag_switch_mode_2 == false) {
-//                X[6][1]=X[91][0];
-//                X[6][0] = 0;
-//                flag_switch_mode_2 = true;
-//                flag_switch_mode_1 = false;
-//                qDebug() << contour_closure_yaw <<"автоматизированный режим";
-//          }
-//           contour_closure_yaw = 1;
-
-//           //X[104][0] = K[104]*X[54][0]; //Ux  - марш
-
-//    //контур дифферента
-//           processDesiredValuesAutomatiz(X[52][0],X[6][0],X[6][1],K[2]); //пересчет рукоятки в автоматизированном режиме
-//           X[311][0] = X[6][0] - X[62][0];
-//           X[312][0] = X[311][0]*K[311];
-//           X[313][0] = X[312][0]*K[312];
-//           X[314][0] = X[314][1] + 0.5*(X[313][0] + X[313][1])*dt; //выходное значение интегратора без полок
-
-//           if (K[313] != 0){//значит заданы полки
-//               X[314][0] = saturation(X[314][0],K[313],K[314]); //выходное значение интегратора с полками
-//           }
-//           X[314][1] = X[314][0];
-//           X[313][1] = X[313][0];
-
-//           X[316][0] = X[314][0] + X[312][0];
-
-//           X[321][0] = X[68][0]*K[318];
-//           X[319][0] = X[52][0]*K[319];
-//           X[317][0] = X[116][0] - X[121][0] + X[119][0];
-//           X[318][0] = saturation(X[317][0],K[316],-K[316]);
-//           X[301][0] = X[318][0]*K[300];
-//        }
-//        else {
-//            X[301][0] = K[301]*X[52][0]; //Upsi
-//            X[301][0] = saturation(X[317][0],K[316],-K[316]);
-//            resetYawChannel();
-//            resetRollChannel();
-
-//       }
 }
+
+void CS_ROV::controlYaw(double dt)
+{
+    if (auvProtocol->rec_data.controlContoursFlags.yaw>0) { //замкнут курс
+       if (flag_switch_mode_2 == false) {
+            X[5][1]=X[91][0];
+            X[5][0] = 0;
+            flag_switch_mode_2 = true;
+            flag_switch_mode_1 = false;
+            flag_switch_mode_3 = false;
+            qDebug() << contour_closure_yaw <<"автоматизированный режим";
+       }
+       contour_closure_yaw = 1;
+
+       processDesiredValuesAutomatiz(X[51][0],X[5][0],X[5][1],K[2]); //пересчет рукоятки в автоматизированном режиме
+       if (modellingFlag == 1 || realLaunchMode == LaunchMode::MODEL) {
+           X[111][0] = X[5][0] - X[18][0];
+       } else {
+           X[111][0] = yawErrorCalculation(X[5][0],X[91][0]); //учет предела работы датчика, пересчет кратчайшего пути
+           }
+       X[112][0] = X[111][0]*K[111];
+       X[113][0] = X[112][0]*K[112];
+       X[114][0] = X[114][1] + 0.5*(X[113][0] + X[113][1])*dt; //выходное значение интегратора без полок
+
+       if (K[113] != 0){//значит заданы полки
+           X[114][0] = saturation(X[114][0],K[113],K[114]); //выходное значение интегратора с полками
+       }
+       X[114][1] = X[114][0];
+       X[113][1] = X[113][0];
+
+       X[116][0] = X[114][0] + X[112][0];
+       if (modellingFlag == 1 || realLaunchMode == LaunchMode::MODEL) {
+           aperiodicFilter(X[12][0],X[401][0],X[401][1],K[402],K[403],dt);
+       } else {
+           aperiodicFilter(X[79][0],X[401][0],X[401][1],K[402],K[403],dt);
+       }
+       X[121][0] = X[401][0]*K[118];
+
+       X[119][0] = X[51][0]*K[119];
+       X[117][0] = X[116][0] - X[121][0] + X[119][0];
+
+    } else {
+        X[117][0] = K[101]*X[51][0]; //Upsi
+        resetYawChannel();
+    }
+    X[118][0] = saturation(X[117][0],K[116],-K[116]);
+    X[101][0] = X[118][0]*K[100];
+    //X[101][0] = X[101][0] + sign(X[101][0])*K[401];
+
+}
+
+void CS_ROV::controlPitch(double dt)
+{
+//    if (auvProtocol->rec_data.controlContoursFlags.pitch>0) { //замкнут дифферент
+//        processDesiredValuesAutomatiz(X[52][0],X[6][0],X[6][1],K[2]); //пересчет рукоятки в автоматизированном режиме
+//        X[311][0] = X[6][0] - X[62][0];
+//        X[312][0] = X[311][0]*K[311];
+//        X[313][0] = X[312][0]*K[312];
+//        X[314][0] = X[314][1] + 0.5*(X[313][0] + X[313][1])*dt; //выходное значение интегратора без полок
+
+//        if (K[313] != 0){//значит заданы полки
+//            X[314][0] = saturation(X[314][0],K[313],K[314]); //выходное значение интегратора с полками
+//         }
+//         X[314][1] = X[314][0];
+//         X[313][1] = X[313][0];
+
+//         X[316][0] = X[314][0] + X[312][0];
+
+//         X[321][0] = X[68][0]*K[318];
+//         X[319][0] = X[52][0]*K[319];
+//         X[317][0] = X[116][0] - X[121][0] + X[119][0];
+//   } else {
+//         X[317][0] = K[301]*X[52][0]; //Upsi
+//         resetRollChannel();
+//   }
+//   X[318][0] = saturation(X[317][0],K[316],-K[316]);
+//   X[301][0] = X[318][0]*K[300];
+}
+
 void CS_ROV::controlRoll(double dt)
 {
     if (auvProtocol->rec_data.controlContoursFlags.roll>0) {
+        contour_closure_roll = 1;
+
         processDesiredValuesAutomatiz(X[53][0],X[800][0],X[800][1],K[800]);
         X[801][0] = X[800][0] - X[63][0];
 
@@ -588,7 +564,7 @@ void CS_ROV::controlRoll(double dt)
             X[804][1] = saturation(X[804][0],K[804],-K[804]);
             X[804][0] = saturation(X[804][0],K[804],-K[804]);
         }
-        X[814][0] = K[814] + X[800][0] * sin((X[800][0]-K[816])/57.3) * K[815];
+        X[814][0] = K[814] + sin((X[800][0]-K[816])/57.3) * K[815];
 
         X[806][0] = X[802][0] + X[804][0];
         X[805][0] = X[53][0] * K[805];
@@ -598,9 +574,9 @@ void CS_ROV::controlRoll(double dt)
         //speed loop
         aperiodicFilter(X[67][0],X[808][0],X[808][1],1,K[808],dt);
         X[809][0] = X[808][0] * K[809];
-        X[810][0] = X[807][0] - X[809][0];
-    }
-    else {
+        X[810][0] = X[807][0] - X[809][0] + K[817]*X[56][0];
+
+    } else {
         X[810][0] = X[53][0] * K[103];
         resetRollChannel();
     }
@@ -608,9 +584,41 @@ void CS_ROV::controlRoll(double dt)
     X[103][0] = K[811] * X[811][0];
 }
 
+void CS_ROV::controlDepth(double dt)
+{
+//   if (auvProtocol->rec_data.controlContoursFlags.depth > 0) { //замкнута глубина
+//       contour_closure_depth = 1;
+//       if (modellingFlag == 1 || realLaunchMode == LaunchMode::MODEL) {
+//          X[601][0] = X[56][0] - X[21][0];
+//       } else {
+//       X[601][0] = X[56][0] - X[609][0];
+//       }
+//       X[602][0] = X[601][0]*K[600]; //Усиление ошибки по положению
+//       X[605][0] = X[602][0]; //Интегрирующую составляющую пропустили
+
+//       if (modellingFlag == 1 || realLaunchMode == LaunchMode::MODEL) {
+//           X[611][0] = X[30][0]*K[606];
+//       } else {
+//       X[610][0] = (X[609][0]-X[609][1])/1; // Дифференцирование
+//       X[611][0] = X[610][0]*K[606]; // Усиление обратной связи по скорости
+//       }
+
+//       X[613][0] = X[56][0]*K[605]; // Усиление возмущающего воздействия по скорости
+//       X[606][0] = X[605][0] - X[611][0] + X[613][0]; // Получение ошибки по скорости
+
+//       X[609][1] = X[609][0];
+//   } else {
+//       X[606][0] = K[96]*X[56][0]; //Uz
+//       resetDepthChannel();
+//   }
+//   X[607][0] = saturation(X[606][0],K[604],-K[604]); // Насыщение в контуре скорости
+//   X[106][0] = X[607][0]*K[607]; // Усиление ошибки по скорости
+}
+
 void CS_ROV::resetYawChannel()
 {
-    X[114][1] = X[114][0] =0;
+    X[5][0] = X[5][1] = 0;
+    X[114][1] = X[114][0] = 0;
 }
 
 void CS_ROV::resetRollChannel()
@@ -621,7 +629,12 @@ void CS_ROV::resetRollChannel()
 }
 
 void CS_ROV::resetPitchChannel() {
+     X[6][0] = X[6][1] = 0;
+     X[314][0] = X[314][1] = 0;
+}
 
+void CS_ROV::resetDepthChannel() {
+     X[604][0] = X[604][1] = 0;
 }
 
 void CS_ROV::BFS_DRK(double Upsi, double Uteta, double Ugamma, double Ux, double Uy, double Uz)
@@ -663,9 +676,7 @@ void CS_ROV::writeDataToPult()
     auvProtocol->send_data.auvData.ControlDataReal.lag;
     auvProtocol->send_data.auvData.signalVMA_real;
     auvProtocol->send_data.ID_mission = auvProtocol->rec_data.ID_mission_AUV;
-//    if (auvProtocol->rec_data.missionControl == mission_Control::MODE_IDLE) {
-//            auvProtocol->send_data.missionStatus = mission_Status::MODE_IDLE;
-//    }
+
     if (auvProtocol->rec_data.missionControl == mission_Control::MODE_START) {
             auvProtocol->send_data.missionStatus = mission_Status::MODE_RUNNING;
     }
@@ -679,7 +690,7 @@ void CS_ROV::writeDataToPult()
     }
 
     if (modellingFlag == 1 || realLaunchMode == LaunchMode::MODEL) {
-        auvProtocol->send_data.dataAH127C.yaw = X[18][0];//61 - это с датчика
+        auvProtocol->send_data.dataAH127C.yaw = X[18][0]; //61 - это с датчика
         auvProtocol->send_data.dataAH127C.pitch = X[17][0];
         auvProtocol->send_data.dataAH127C.roll = X[16][0];
         auvProtocol->send_data.dataAH127C.X_rate = X[10][0];
@@ -697,7 +708,10 @@ void CS_ROV::writeDataToPult()
         auvProtocol->send_data.auvData.signalVMA_real.VMA6 = X[261][0];
 
     } else {
-        auvProtocol->send_data.dataAH127C.yaw = X[91][0];//61 - это с датчика
+        auvProtocol->send_data.dataAH127C.yaw = X[91][0];
+        qDebug() << "X[91][0] "<< X[91][0];
+        qDebug() << "X[62][0] "<< X[62][0];
+        qDebug() << "X[63][0] "<< X[63][0];
         auvProtocol->send_data.dataAH127C.pitch = X[62][0];
         auvProtocol->send_data.dataAH127C.roll = X[63][0];
         auvProtocol->send_data.dataAH127C.X_accel = X[64][0];
@@ -730,7 +744,7 @@ void CS_ROV::writeDataToPult()
         auvProtocol->send_data.auvData.signalVMA_real.VMA5 = X[84][0];
         auvProtocol->send_data.auvData.signalVMA_real.VMA6 = X[85][0];
     }
-    qDebug()<<"additional auvProtocol->send_data.dataUWB.locationX  "<<auvProtocol->send_data.dataUWB.locationX;
+//    qDebug()<<"additional auvProtocol->send_data.dataUWB.locationX  "<<auvProtocol->send_data.dataUWB.locationX;
 }
 
 void CS_ROV:: timer_power_power()
@@ -739,34 +753,26 @@ void CS_ROV:: timer_power_power()
             qDebug() << "power_Mode::MODE_2";
             digitalWrite (27, LOW) ;
             digitalWrite (28, LOW) ;
-            X[57][0] = 20;
       }
       else if (auvProtocol->rec_data.pMode == power_Mode::MODE_3){
           digitalWrite (27, LOW) ;
           digitalWrite (28, HIGH) ;
           qDebug() << "power_Mode::MODE_3";
-          X[57][0] = 30;
       }
       else if (auvProtocol->rec_data.pMode == power_Mode::MODE_4){
           digitalWrite (27, HIGH) ;
           digitalWrite (28, LOW) ;
           qDebug() << "power_Mode::MODE_4";
-          X[57][0] =40;
       }
       else if (auvProtocol->rec_data.pMode == power_Mode::MODE_5){
           digitalWrite (27, HIGH) ;
           digitalWrite (28, HIGH) ;
           qDebug() << "power_Mode::MODE_5";
-          X[57][0] = 50;
       }
       else {
           qDebug() << "power_Mode:: WRONG";
-//          digitalWrite (27, LOW) ;
-//          digitalWrite (28, LOW) ;
-          X[57][0] = 0;
       }
   }
-
 
 void CS_ROV::setModellingFlag(bool flag)
 {

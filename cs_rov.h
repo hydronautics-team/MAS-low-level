@@ -5,7 +5,6 @@
 #include "Parser-BW-AH127C/AH127Cprotocol.h"
 #include <QThread>
 #include <QSettings>
-//#include "pult_connection/pultcontrolsystemprotocols.h"
 #include "NIR/VMA_controller/vma_controller.h"
 #include "math.h"
 #include <qmath.h>
@@ -17,6 +16,7 @@
 #include "parserUWB/trilatUWB.h"
 #include "PS_MS5837/ms5837.h"
 #include"logger/logger.h"
+#include "Beacon-withPult/hydroacoustics.h"
 
 const QString ConfigFile = "protocols.conf";
 const QString agent = "agent";
@@ -43,6 +43,7 @@ public:
 public slots:
     void tick();
     void resetValues();
+    void updateDataUWB(uWave uwvave);
 
 public:
     double limit (double value, double limit){
@@ -59,6 +60,7 @@ public:
 protected:
 
     Logger logger;
+    Hydroacoustics *hydro = nullptr;
     void processDesiredValuesAutomatiz(double inputFromRUD, double &output, double &prev_output, double scaleK,
                                        bool flagLimit = false, double maxValue=180, double dt=0.01);
     void integrate(double &input, double &output, double &prevOutput, double dt);
@@ -72,7 +74,11 @@ protected:
     void resetYawChannel();
     void resetRollChannel();
     void resetPitchChannel();
+    void resetDepthChannel();
+    void controlYaw(double dt);
+    void controlPitch(double dt);
     void controlRoll(double dt);
+    void controlDepth(double dt);
     void BFS_DRK(double Upsi, double Uteta, double Ugamma, double Ux, double Uy, double Uz);
     void writeDataToVMA();
     void writeDataToPult();
@@ -92,6 +98,7 @@ protected:
     ControlSystem::PC_Protocol *auvProtocol = nullptr;
     ROV_Model model;
     QTimer timer;
+    QTimer timerRound;
     QTimer timer_power;
     QTimer timerVMA;
     QThread vmaThread;
