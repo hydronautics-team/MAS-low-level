@@ -8,7 +8,7 @@
 #include <QSettings>
 #include "math.h"
 
-//для использования kx-pult
+//for kx-pult
 extern double X[2000][2];
 extern QVector<double> K;
 

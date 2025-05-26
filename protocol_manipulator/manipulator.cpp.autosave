@@ -26,7 +26,7 @@ void Manipulator_controller::start() {
         qDebug() << "Duplicate open request";
         return;
     }
-    mSerialPort->setPortName(mPortName);
+    mSerialPort->setPortName(mPortName); // init Serial Port
     mSerialPort->setBaudRate(mBaud);
     mSerialPort->setDataBits(mDataBits);
     mSerialPort->setStopBits(mStopBits);
@@ -48,7 +48,7 @@ void Manipulator_controller::tick() {
 
 bool Manipulator_controller::sendData()
 {
-    bool res = true;
+    bool res = true; // 
     QByteArray packet; // create a packet for the transmission
 
     packet.append((const char)(manipulator_command)); // add our command into the packet
