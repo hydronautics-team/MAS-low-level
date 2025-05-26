@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE QtCreatorProject>
-<!-- Written by QtCreator 4.11.0, 2025-03-27T06:16:04. -->
+<!-- Written by QtCreator 4.11.0, 2025-05-19T20:20:59. -->
 <qtcreator>
  <data>
   <variable>EnvironmentId</variable>
@@ -285,8 +285,9 @@
     </valuelist>
     <value type="int" key="PE.EnvironmentAspect.Base">2</value>
     <valuelist type="QVariantList" key="PE.EnvironmentAspect.Changes"/>
-    <value type="QString" key="ProjectExplorer.ProjectConfiguration.Id">Qt4ProjectManager.Qt4RunConfiguration:/home/hydroubuntu20/projects/Astrakhan2025__1_last_redact/MAS-low-level/MAS-low-level.pro</value>
-    <value type="QString" key="ProjectExplorer.RunConfiguration.BuildKey">/home/hydroubuntu20/projects/Astrakhan2025__1_last_redact/MAS-low-level/MAS-low-level.pro</value>
+    <value type="QString" key="ProjectExplorer.ProjectConfiguration.DisplayName">MAS-low-level2</value>
+    <value type="QString" key="ProjectExplorer.ProjectConfiguration.Id">Qt4ProjectManager.Qt4RunConfiguration:/home/hydroubuntu20/projects/Astrakhan2025__1_last_redact_for_github/MAS-low-level/MAS-low-level.pro</value>
+    <value type="QString" key="ProjectExplorer.RunConfiguration.BuildKey">/home/hydroubuntu20/projects/Astrakhan2025__1_last_redact_for_github/MAS-low-level/MAS-low-level.pro</value>
     <value type="QString" key="RunConfiguration.Arguments"></value>
     <value type="bool" key="RunConfiguration.Arguments.multi">false</value>
     <value type="QString" key="RunConfiguration.OverrideDebuggerStartup"></value>
